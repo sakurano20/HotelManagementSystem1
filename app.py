@@ -1686,6 +1686,7 @@ def inject_settings():
     all_settings = {row['setting_key']: row['setting_value'] for row in rows}
 
     cursor.close()
+    
     conn.close()
 
     return dict(
