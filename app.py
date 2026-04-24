@@ -62,8 +62,7 @@ def do_login():
     email = request.form['email']
     password = request.form['password']
 
-    conn = get_db()
-    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute(
         "SELECT * FROM users WHERE email = %s AND password = %s",
@@ -73,7 +72,6 @@ def do_login():
     user = cursor.fetchone()
 
     cursor.close()
-    conn.close()
 
     if user:
         session['user'] = user['email']
@@ -91,8 +89,7 @@ def logout():
 @app.route('/dashboard')
 @require_login
 def dashboard():
-    conn = get_db()
-    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute("SELECT COUNT(*) as total FROM rooms")
     total_rooms = cursor.fetchone()['total']
@@ -151,7 +148,6 @@ def dashboard():
     recent_payments = cursor.fetchall()
 
     cursor.close()
-    conn.close()
 
     return render_template(
         'dashboard.html',
@@ -167,7 +163,6 @@ def dashboard():
         reservation_status=reservation_status,
         recent_payments=recent_payments
     )
-
 # ==================== ROOM MANAGEMENT ====================
 
 @app.route('/rooms')
