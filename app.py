@@ -11,16 +11,35 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-def get_db():
-    return pymysql.connect(
-        host=os.environ.get("DB_HOST"),
-        port=int(os.environ.get("DB_PORT", 25060)),
-        user=os.environ.get("DB_USER"),
-        password=os.environ.get("DB_PASSWORD"),
-        database=os.environ.get("DB_NAME"),
-        ssl={"ca": "ca.pem"}
-    )
+db = None
 
+def get_db():
+    global db
+
+    try:
+        if db is None:
+            raise Exception("No connection")
+
+        # keep connection alive / reconnect if needed
+        db.ping(reconnect=True)
+
+    except:
+        db = pymysql.connect(
+            host=os.environ.get("DB_HOST"),
+            port=int(os.environ.get("DB_PORT", 25060)),
+            user=os.environ.get("DB_USER"),
+            password=os.environ.get("DB_PASSWORD"),
+            database=os.environ.get("DB_NAME"),
+            ssl={"ca": "ca.pem"}
+        )
+
+    return db
+
+@app.before_request
+def before_request():
+    global db
+    db = get_db()
+    
 def require_login(f):
     from functools import wraps
     @wraps(f)
@@ -154,7 +173,7 @@ def dashboard():
 @app.route('/rooms')
 @require_login
 def rooms():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM rooms ORDER BY room_number")
     rooms_list = cursor.fetchall()
     cursor.close()
@@ -233,7 +252,7 @@ def delete_room(id):
 @app.route('/reservations')
 @require_login
 def reservations():
-    cursor = db.cursor(dictionary=True)
+   cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT r.*, rom.room_number, rom.type, rom.price
         FROM reservations r
@@ -243,17 +262,17 @@ def reservations():
     reservations_list = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM rooms WHERE status = 'available'")
     available_rooms = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM rooms ORDER BY room_number")
     rooms = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT c.*, rom.room_number, rom.type
         FROM checkins c
@@ -306,7 +325,7 @@ def add_reservation():
         return f"Reservations cannot exceed 5 months from today ({max_date.strftime('%Y-%m-%d')}). Please select shorter dates. <a href='/reservations'>Go Back</a>"
 
     # Get room price to validate downpayment
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT price FROM rooms WHERE id = %s", (room_id,))
     room = cursor.fetchone()
     if room:
@@ -318,7 +337,7 @@ def add_reservation():
 
     # Only check for CONFIRMED reservations as blockers (pending/cancelled don't block new bookings)
     # OVERLAP DETECTION: Two ranges overlap if: A.start < B.end AND A.end > B.start
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT * FROM reservations
         WHERE room_id = %s AND status = 'confirmed'
@@ -331,7 +350,7 @@ def add_reservation():
         return "Room is already booked for selected dates (confirmed reservation exists). <a href='/reservations'>Go Back</a>"
 
     # Check for active check-ins that would conflict
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT * FROM checkins
         WHERE room_id = %s AND status = 'checked-in'
@@ -355,7 +374,7 @@ def add_reservation():
 @app.route('/reservations/<int:id>/confirm', methods=['POST'])
 @require_login
 def confirm_reservation(id):
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE reservations SET status='confirmed' WHERE id=%s", (id,))
     db.commit()
 
@@ -438,7 +457,7 @@ def confirm_reservation(id):
 @app.route('/reservations/<int:id>/cancel', methods=['POST'])
 @require_login
 def cancel_reservation(id):
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE reservations SET status='cancelled' WHERE id=%s", (id,))
     db.commit()
 
@@ -514,7 +533,7 @@ def delete_reservation(id):
 @app.route('/checkins')
 @require_login
 def checkins():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT c.*, rom.room_number, rom.type
         FROM checkins c
@@ -524,7 +543,7 @@ def checkins():
     checkins_list = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT r.*, rom.room_number, rom.price, rom.type
         FROM reservations r
@@ -542,7 +561,7 @@ def checkins():
 @require_login
 def get_reservation_payment_summary(id):
     """Return payment summary for a reservation"""
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute("""
         SELECT r.*, rom.price as room_rate, rom.room_number
@@ -594,7 +613,7 @@ def add_checkin():
     guest_name = request.form['guest_name']
 
     # Validate foreign key relationships FIRST
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Verify room exists
     cursor.execute("SELECT id, status FROM rooms WHERE id = %s", (room_id,))
@@ -726,7 +745,7 @@ def checkout_summary(id):
     # SECURITY: Always use global tax rate from settings - never from user input
     tax_rate = get_tax_rate()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT c.*, rom.room_number, rom.type, rom.price as room_price,
                r.guest_name as res_guest_name, r.email as res_email,
@@ -816,7 +835,7 @@ def create_payment_at_checkout(id):
     # SECURITY: Use ONLY global tax rate from settings - never trust user input
     tax_rate = get_tax_rate()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Get checkin with full relational data
     cursor.execute("""
@@ -934,7 +953,7 @@ def add_payment():
     # SECURITY: Always use global tax rate from settings - user cannot manipulate
     tax_rate = get_tax_rate()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Get checkin with full relational data
     cursor.execute("""
@@ -1025,7 +1044,7 @@ def add_payment():
 @require_login
 def print_receipt(id):
     """Generate printable receipt"""
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT p.*, c.guest_name, c.check_in_time, c.check_out_time,
                rom.room_number, rom.type as room_type, rom.price as room_price,
@@ -1075,7 +1094,7 @@ def print_receipt(id):
 @app.route('/foods')
 @require_login
 def foods():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM foods ORDER BY category, name")
     foods_list = cursor.fetchall()
     cursor.close()
@@ -1155,7 +1174,7 @@ def delete_food(id):
 @app.route('/foods/<int:id>/toggle', methods=['POST'])
 @require_login
 def toggle_food(id):
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT available FROM foods WHERE id=%s", (id,))
     food = cursor.fetchone()
     cursor.close()
@@ -1172,7 +1191,7 @@ def toggle_food(id):
 @app.route('/food-orders')
 @require_login
 def food_orders():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT fo.*, c.guest_name, rom.room_number
         FROM food_orders fo
@@ -1183,12 +1202,12 @@ def food_orders():
     orders = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT c.*, rom.room_number FROM checkins c JOIN rooms rom ON c.room_id = rom.id WHERE c.status='checked-in'")
     active_checkins = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM foods ORDER BY category, name")
     foods = cursor.fetchall()
     cursor.close()
@@ -1262,7 +1281,7 @@ def update_food_order(id):
 @app.route('/addon-orders')
 @require_login
 def addon_orders():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT ao.*, c.guest_name, rom.room_number, a.name as addon_name
         FROM addon_orders ao
@@ -1274,12 +1293,12 @@ def addon_orders():
     orders = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT c.*, rom.room_number FROM checkins c JOIN rooms rom ON c.room_id = rom.id WHERE c.status='checked-in'")
     active_checkins = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM addons WHERE available = TRUE ORDER BY name")
     addons = cursor.fetchall()
     cursor.close()
@@ -1293,7 +1312,7 @@ def add_addon_order():
     addon_id = request.form['addon_id']
     quantity = request.form.get('quantity', 1)
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT price FROM addons WHERE id = %s", (addon_id,))
     addon = cursor.fetchone()
     cursor.close()
@@ -1328,7 +1347,7 @@ def update_addon_order(id):
 @app.route('/addon-orders/<int:id>/edit', methods=['GET'])
 @require_login
 def edit_addon_order(id):
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM addon_orders WHERE id=%s", (id,))
     order = cursor.fetchone()
     cursor.close()
@@ -1348,7 +1367,7 @@ def delete_addon_order(id):
 @app.route('/payments')
 @require_login
 def payments():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Fetch payments with full relational data
     cursor.execute("""
@@ -1368,7 +1387,7 @@ def payments():
 
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT c.*, rom.room_number, rom.price as room_price FROM checkins c JOIN rooms rom ON c.room_id = rom.id WHERE c.status='checked-in'")
     active_checkins = cursor.fetchall()
     cursor.close()
@@ -1389,7 +1408,7 @@ def complete_payment(id):
 @app.route('/addons')
 @require_login
 def addons():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM addons ORDER BY name")
     addons_list = cursor.fetchall()
     cursor.close()
@@ -1433,7 +1452,7 @@ def delete_addon(id):
 @app.route('/addons/<int:id>/toggle', methods=['POST'])
 @require_login
 def toggle_addon(id):
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT available FROM addons WHERE id=%s", (id,))
     addon = cursor.fetchone()
     cursor.close()
@@ -1558,12 +1577,12 @@ def settings():
         flash('Settings saved successfully!', 'success')
         return redirect(url_for('settings', active_tab=active_tab))
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM settings")
     all_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM users ORDER BY created_at DESC")
     users = cursor.fetchall()
     cursor.close()
@@ -1581,7 +1600,7 @@ def test_email():
         flash('Please enter an email address to send the test.', 'danger')
         return redirect(url_for('settings'))
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
     settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
@@ -1669,7 +1688,7 @@ def delete_user(id):
 
 # Helper to get setting
 def get_setting(key, default=''):
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_value FROM settings WHERE setting_key=%s", (key,))
     result = cursor.fetchone()
     cursor.close()
@@ -1719,7 +1738,7 @@ def format_currency(value):
 @app.route('/reports')
 @require_login
 def reports():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Default to current month
     today = datetime.now()
@@ -1853,7 +1872,7 @@ def export_report(format):
     import csv
     import io
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     start_date = request.args.get('start_date', datetime.now().strftime('%Y-%m-01'))
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -2018,7 +2037,7 @@ def export_report(format):
 # ==================== EMAIL HELPER ====================
 
 def get_email_settings():
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
     settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
@@ -2041,7 +2060,7 @@ def render_email_template(template, replacements):
 def send_email(to_email, subject, html_body, text_body=None):
     print(f"[EMAIL] Starting send_email to: {to_email}")
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
     settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
