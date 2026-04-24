@@ -1677,11 +1677,21 @@ def get_tax_rate():
 
 @app.context_processor
 def inject_settings():
-    cursor = db.cursor(dictionary=True)
+    conn = get_db()
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+
     cursor.execute("SELECT * FROM settings")
-    all_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
+    rows = cursor.fetchall()
+
+    all_settings = {row['setting_key']: row['setting_value'] for row in rows}
+
     cursor.close()
-    return dict(system_settings=all_settings, user_role=session.get('role', 'staff'))
+    conn.close()
+
+    return dict(
+        system_settings=all_settings,
+        user_role=session.get('role', 'staff')
+    )
 
 @app.template_filter('format_currency')
 def format_currency(value):
