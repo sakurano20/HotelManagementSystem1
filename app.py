@@ -72,7 +72,8 @@ def logout():
 @app.route('/dashboard')
 @require_login
 def dashboard():
-    cursor = db.cursor(dictionary=True)
+    conn = get_db()
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute("SELECT COUNT(*) as total FROM rooms")
     total_rooms = cursor.fetchone()['total']
@@ -131,14 +132,22 @@ def dashboard():
     recent_payments = cursor.fetchall()
 
     cursor.close()
+    conn.close()
 
-    return render_template('dashboard.html', email=session['user'],
-                         total_rooms=total_rooms, available_rooms=available_rooms,
-                         reserved_rooms=reserved_rooms,
-                         total_reservations=total_reservations, active_checkins=active_checkins,
-                         total_revenue=total_revenue, revenue_data=revenue_data,
-                         room_types=room_types, reservation_status=reservation_status,
-                         recent_payments=recent_payments)
+    return render_template(
+        'dashboard.html',
+        email=session['user'],
+        total_rooms=total_rooms,
+        available_rooms=available_rooms,
+        reserved_rooms=reserved_rooms,
+        total_reservations=total_reservations,
+        active_checkins=active_checkins,
+        total_revenue=total_revenue,
+        revenue_data=revenue_data,
+        room_types=room_types,
+        reservation_status=reservation_status,
+        recent_payments=recent_payments
+    )
 
 # ==================== ROOM MANAGEMENT ====================
 
