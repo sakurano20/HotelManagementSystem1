@@ -11,15 +11,15 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-db = pymysql.connect(
-    host=os.environ.get("mysql-35589012-sakurano20-3d4f.h.aivencloud.com"),
-    port=int(os.environ.get("DB_PORT",10538)),
-    user=os.environ.get("avnadmin"),
-    password=os.environ.get("avnadmin"),
-    database=os.environ.get("flaskdb"),
-    ssl={"ca": "ca.pem"}
-)
-
+def get_db():
+    return pymysql.connect(
+        host=os.environ.get("DB_HOST"),
+        port=int(os.environ.get("DB_PORT", 25060)),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASSWORD"),
+        database=os.environ.get("DB_NAME"),
+        ssl={"ca": "ca.pem"}
+    )
 def get_db():
     return db
 
