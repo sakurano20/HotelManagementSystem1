@@ -20,8 +20,6 @@ def get_db():
         database=os.environ.get("DB_NAME"),
         ssl={"ca": "ca.pem"}
     )
-def get_db():
-    return db
 
 def require_login(f):
     from functools import wraps
@@ -45,10 +43,18 @@ def do_login():
     email = request.form['email']
     password = request.form['password']
 
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users WHERE email = %s AND password = %s", (email, password))
+    conn = get_db()
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+
+    cursor.execute(
+        "SELECT * FROM users WHERE email = %s AND password = %s",
+        (email, password)
+    )
+
     user = cursor.fetchone()
+
     cursor.close()
+    conn.close()
 
     if user:
         session['user'] = user['email']
@@ -56,7 +62,7 @@ def do_login():
         return redirect(url_for('dashboard'))
     else:
         return "Invalid credentials. <a href='/login'>Try again</a>"
-
+        
 @app.route('/logout')
 def logout():
     session.pop('user', None)
