@@ -3,6 +3,7 @@ import mysql.connector
 import os
 import smtplib
 import ssl
+import pymysql
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -10,11 +11,13 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="flaskdb"
+db = pymysql.connect(
+    host=os.environ.get("mysql-35589012-sakurano20-3d4f.h.aivencloud.com"),
+    port=int(os.environ.get("DB_PORT",10538)),
+    user=os.environ.get("avnadmin"),
+    password=os.environ.get("avnadmin"),
+    database=os.environ.get("flaskdb"),
+    ssl={"ca": "ca.pem"}
 )
 
 def get_db():
