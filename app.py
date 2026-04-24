@@ -247,7 +247,7 @@ def delete_room(id):
 @app.route('/reservations')
 @require_login
 def reservations():
-   cursor = db.cursor(pymysql.cursors.DictCursor)
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT r.*, rom.room_number, rom.type, rom.price
         FROM reservations r
