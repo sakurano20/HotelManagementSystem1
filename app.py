@@ -605,10 +605,14 @@ def confirm_reservation(id):
             <p>We look forward seeing you!</p>
             """ + (footer if footer else '')
 
-        result = send_email(reservation['email'], subject, html_body)
-        print(f"[CONFIRM] Email result: {result}")
+        try:
+            result, message = send_email(reservation['email'], subject, html_body)
+            print(f"[CONFIRM] Email result: {result}, message: {message}")
+        except Exception as e:
+            print(f"[CONFIRM] Critical email system error: {str(e)}")
     else:
         print(f"[CONFIRM] Skipped - enabled: {email_enabled}, confirm: {email_confirmation}, email: {reservation['email'] if reservation else 'none'}")
+
 
     cursor.close()
     return redirect(url_for('reservations'))
@@ -666,8 +670,11 @@ def cancel_reservation(id):
             <p>If you have any questions, please contact us.</p>
             """ + (footer if footer else '')
 
-        result = send_email(reservation['email'], subject, html_body)
-        print(f"[CANCEL] Email result: {result}")
+        try:
+            result, message = send_email(reservation['email'], subject, html_body)
+            print(f"[CANCEL] Email result: {result}, message: {message}")
+        except Exception as e:
+            print(f"[CANCEL] Critical email system error: {str(e)}")
     else:
         print(f"[CANCEL] Skipped - enabled: {email_enabled}, cancel: {email_cancellation}, email: {reservation['email'] if reservation else 'none'}")
 
