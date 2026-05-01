@@ -2399,7 +2399,8 @@ def send_email(to_email, subject, html_body, text_body=None):
 
     if not email_enabled:
         print("[EMAIL] Disabled, skipping")
-        return False
+        return True, "Disabled"
+
 
     if not to_email:
         print("[EMAIL] No recipient email")
