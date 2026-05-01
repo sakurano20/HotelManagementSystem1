@@ -2404,11 +2404,11 @@ def send_email(to_email, subject, html_body, text_body=None):
 
     if not to_email:
         print("[EMAIL] No recipient email")
-        return False
+        return False, "No recipient email"
 
     if not smtp_host or not smtp_user or not smtp_password or not sender_email:
         print("[EMAIL] Missing SMTP configuration")
-        return False
+        return False, "Missing SMTP configuration"
 
     if text_body is None:
         text_body = html_body.replace('<br>', '\n').replace('<p>', '').replace('</p>', '\n')
