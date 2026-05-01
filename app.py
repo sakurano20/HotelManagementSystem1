@@ -1850,12 +1850,12 @@ def test_email():
     <p><strong>Sent at:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     """
 
-    result = send_email(test_email_address, subject, html_body)
+    result, message = send_email(test_email_address, subject, html_body)
 
     if result:
         flash(f'Test email sent successfully to {test_email_address}!', 'success')
     else:
-        flash('Failed to send test email. Check your SMTP settings and try again.', 'danger')
+        flash(f'Failed to send test email: {message}. Check your SMTP settings and try again.', 'danger')
 
     return redirect(url_for('settings'))
 
@@ -2414,21 +2414,27 @@ def send_email(to_email, subject, html_body, text_body=None):
 
     try:
         print(f"[EMAIL] Connecting to {smtp_host}:{smtp_port}...")
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
-        server.set_debuglevel(1)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+            server.set_debuglevel(1)
+            server.ehlo()
+            if smtp_port != 25: # STARTTLS is typically used on 587 and 25
+                server.starttls()
+            server.ehlo()
+
         server.login(smtp_user, smtp_password)
         server.sendmail(sender_email, [to_email], msg.as_string())
         server.quit()
         print("[EMAIL] Sent successfully!")
-        return True
+        return True, "Success"
     except Exception as e:
-        print(f"[EMAIL] Error: {str(e)}")
+        error_msg = str(e)
+        print(f"[EMAIL] Error: {error_msg}")
         import traceback
         traceback.print_exc()
-        return False
+        return False, error_msg
 
 @app.route('/migrate/add-fb-column')
 @require_login
