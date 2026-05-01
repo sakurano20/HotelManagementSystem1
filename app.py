@@ -546,74 +546,7 @@ def confirm_reservation(id):
     """, (id,))
     reservation = cursor.fetchone()
 
-    # Update room status to reserved when confirmed
-    if reservation and reservation.get('room_id'):
-        cursor.execute("UPDATE rooms SET status='reserved' WHERE id=%s", (reservation['room_id'],))
-        db.commit()
-
-    # Get all email settings in one query
-    cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
-    email_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
-
-    email_enabled = email_settings.get('email_enabled', 'false') == 'true'
-    email_confirmation = email_settings.get('email_confirmation', 'false') == 'true'
-
-    print(f"[CONFIRM] email_enabled: {email_enabled}, email_confirmation: {email_confirmation}")
-
-    if email_enabled and email_confirmation and reservation and reservation['email']:
-        company_name = email_settings.get('company_name', 'DNZTech IMS')
-        currency_symbol = email_settings.get('currency_symbol', '$')
-
-        check_in = reservation['check_in']
-        check_out = reservation['check_out']
-        nights = (check_out - check_in).days if check_in and check_out else 1
-        total = reservation['price'] * nights if reservation.get('price') else 0
-
-        # Build replacements dict
-        replacements = {
-            'company_name': company_name,
-            'guest_name': reservation['guest_name'],
-            'room_number': reservation['room_number'],
-            'room_type': reservation['type'],
-            'check_in': check_in,
-            'check_out': check_out,
-            'nights': nights,
-            'total': total,
-            'currency_symbol': currency_symbol
-        }
-
-        # Get custom subject and body, render with placeholders
-        custom_subject = render_email_template(email_settings.get('email_confirmation_subject', ''), replacements)
-        custom_body = render_email_template(email_settings.get('email_confirmation_body', ''), replacements)
-        footer = render_email_template(email_settings.get('email_footer', ''), replacements)
-
-        if custom_subject and custom_body:
-            subject = custom_subject
-            html_body = custom_body + ('\n' + footer if footer else '')
-        else:
-            subject = f"Reservation Confirmed - {company_name}"
-            html_body = f"""
-            <h2>{company_name}</h2>
-            <h3>Reservation Confirmed!</h3>
-            <p>Dear {reservation['guest_name']},</p>
-            <p>Your reservation has been confirmed.</p>
-            <p><strong>Room:</strong> {reservation['room_number']} ({reservation['type']})</p>
-            <p><strong>Check-in:</strong> {check_in}</p>
-            <p><strong>Check-out:</strong> {check_out}</p>
-            <p><strong>Nights:</strong> {nights}</p>
-            <p><strong>Total:</strong> {total}</p>
-            <p>We look forward seeing you!</p>
-            """ + (footer if footer else '')
-
-        try:
-            result, message = send_email(reservation['email'], subject, html_body)
-            print(f"[CONFIRM] Email result: {result}, message: {message}")
-        except Exception as e:
-            print(f"[CONFIRM] Critical email system error: {str(e)}")
-    else:
-        print(f"[CONFIRM] Skipped - enabled: {email_enabled}, confirm: {email_confirmation}, email: {reservation['email'] if reservation else 'none'}")
-
-
+   
     cursor.close()
     return redirect(url_for('reservations'))
 
