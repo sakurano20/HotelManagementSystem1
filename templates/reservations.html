@@ -375,11 +375,12 @@
       border-radius: 50%;
     }
     /* Calendar-based selection styles */
-    #modalCalendar {
-      height: 420px;
-      border-radius: 12px;
-      overflow: hidden;
-    }
+  #modalCalendar {
+  height: 420px;
+  border-radius: 12px;
+  overflow-y: auto;   /* enable vertical scroll */
+  overflow-x: hidden; /* optional */
+}
     #modalCalendar .fc-toolbar {
       padding: 0.75rem;
       background: #f8f9fa;
