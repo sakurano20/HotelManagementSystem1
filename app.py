@@ -126,7 +126,7 @@ def get_db():
     return db
 
 def get_setting(key, default=''):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_value FROM settings WHERE setting_key=%s", (key,))
     result = cursor.fetchone()
     cursor.close()
@@ -191,7 +191,7 @@ def do_login():
     email = request.form['email']
     password = request.form['password']
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
     cursor.close()
@@ -212,7 +212,7 @@ def logout():
 @app.route('/dashboard')
 @require_login
 def dashboard():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute("SELECT COUNT(*) as total FROM rooms")
     total_rooms = cursor.fetchone()['total']
@@ -285,7 +285,7 @@ def dashboard():
 @app.route('/rooms')
 @require_login
 def rooms():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM rooms ORDER BY room_number")
     rooms_list = cursor.fetchall()
     cursor.close()
@@ -309,7 +309,7 @@ def add_room():
         os.makedirs(os.path.dirname(upload_path), exist_ok=True)
         image_file.save(upload_path)
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     if image_filename:
         cursor.execute("INSERT INTO rooms (room_number, type, price, image) VALUES (%s, %s, %s, %s)",
                       (room_number, room_type, price, image_filename))
@@ -339,7 +339,7 @@ def edit_room(id):
         os.makedirs(os.path.dirname(upload_path), exist_ok=True)
         image_file.save(upload_path)
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     if image_filename:
         cursor.execute("UPDATE rooms SET room_number=%s, type=%s, price=%s, status=%s, image=%s WHERE id=%s",
                       (room_number, room_type, price, status, image_filename, id))
@@ -353,7 +353,7 @@ def edit_room(id):
 @app.route('/rooms/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_room(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("DELETE FROM rooms WHERE id=%s", (id,))
     db.commit()
     cursor.close()
@@ -364,7 +364,7 @@ def delete_room(id):
 @app.route('/reservations')
 @require_login
 def reservations():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT r.*, rom.room_number, rom.type, rom.price
         FROM reservations r
@@ -374,17 +374,17 @@ def reservations():
     reservations_list = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM rooms WHERE status = 'available'")
     available_rooms = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM rooms ORDER BY room_number")
     rooms = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT c.*, rom.room_number, rom.type
         FROM checkins c
@@ -394,7 +394,7 @@ def reservations():
     active_checkins = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT id, name, email, role FROM users ORDER BY name")
     users = cursor.fetchall()
     cursor.close()
@@ -442,7 +442,7 @@ def add_reservation():
         return f"Reservations cannot exceed 5 months from today ({max_date.strftime('%Y-%m-%d')}). Please select shorter dates. <a href='/reservations'>Go Back</a>"
 
     # Get room price to validate downpayment
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT price FROM rooms WHERE id = %s", (room_id,))
     room = cursor.fetchone()
     if room:
@@ -454,7 +454,7 @@ def add_reservation():
 
     # Only check for CONFIRMED reservations as blockers (pending/cancelled don't block new bookings)
     # OVERLAP DETECTION: Two ranges overlap if: A.start < B.end AND A.end > B.start
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT * FROM reservations
         WHERE room_id = %s AND status = 'confirmed'
@@ -467,7 +467,7 @@ def add_reservation():
         return "Room is already booked for selected dates (confirmed reservation exists). <a href='/reservations'>Go Back</a>"
 
     # Check for active check-ins that would conflict
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT * FROM checkins
         WHERE room_id = %s AND status = 'checked-in'
@@ -481,7 +481,7 @@ def add_reservation():
 
     # Handle customer info - save fb_account to customers table
     fb_account = request.form.get('fb_account', '')
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT id FROM customers WHERE email = %s", (email,))
     existing_customer = cursor.fetchone()
     cursor.close()
@@ -489,20 +489,20 @@ def add_reservation():
     if existing_customer:
         # Update fb_account if provided
         if fb_account:
-            cursor = db.cursor()
+            cursor = db.cursor(pymysql.cursors.DictCursor)
             cursor.execute("UPDATE customers SET fb_account = %s WHERE email = %s", (fb_account, email))
             db.commit()
             cursor.close()
     else:
         # Create new customer record
-        cursor = db.cursor()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
         cursor.execute("""
             INSERT INTO customers (name, email, contact, fb_account) VALUES (%s, %s, %s, %s)
         """, (guest_name, email, phone or '', fb_account))
         db.commit()
         cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         INSERT INTO reservations (guest_name, email, phone, room_id, check_in, check_out, status, downpayment_amount, fb_account, agent_name)
         VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
@@ -514,7 +514,7 @@ def add_reservation():
 @app.route('/reservations/<int:id>/confirm', methods=['POST'])
 @require_login
 def confirm_reservation(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE reservations SET status='confirmed' WHERE id=%s", (id,))
     db.commit()
 
@@ -597,7 +597,7 @@ def confirm_reservation(id):
 @app.route('/reservations/<int:id>/cancel', methods=['POST'])
 @require_login
 def cancel_reservation(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE reservations SET status='cancelled' WHERE id=%s", (id,))
     db.commit()
 
@@ -658,7 +658,7 @@ def cancel_reservation(id):
 @app.route('/reservations/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_reservation(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     # Set reservation_id to NULL in checkins first (handles foreign key)
     cursor.execute("UPDATE checkins SET reservation_id=NULL WHERE reservation_id=%s", (id,))
     db.commit()
@@ -673,7 +673,7 @@ def delete_reservation(id):
 @app.route('/checkins')
 @require_login
 def checkins():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT c.*, rom.room_number, rom.type,
                r.agent_name as res_agent_name
@@ -684,7 +684,7 @@ def checkins():
     """)
     checkins_list = cursor.fetchall()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT r.*, rom.room_number, rom.price, rom.type
         FROM reservations r
@@ -702,7 +702,7 @@ def checkins():
 @require_login
 def get_reservation_payment_summary(id):
     """Return payment summary for a reservation"""
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute("""
         SELECT r.*, rom.price as room_rate, rom.room_number
@@ -754,7 +754,7 @@ def add_checkin():
     guest_name = request.form['guest_name']
 
     # Validate foreign key relationships FIRST
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Verify room exists
     cursor.execute("SELECT id, status FROM rooms WHERE id = %s", (room_id,))
@@ -855,7 +855,7 @@ def add_checkin():
     if reservation_id and reservation:
         agent_name = reservation.get('agent_name')
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         INSERT INTO checkins (reservation_id, room_id, guest_name, check_in_time, status,
                               total_price, downpayment_amount, remaining_balance, payment_status, agent_name)
@@ -891,7 +891,7 @@ def checkout_summary(id):
     # SECURITY: Always use global tax rate from settings - never from user input
     tax_rate = get_tax_rate()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT c.*, rom.room_number, rom.type, rom.price as room_price,
                r.guest_name as res_guest_name, r.email as res_email,
@@ -981,7 +981,7 @@ def create_payment_at_checkout(id):
     # SECURITY: Use ONLY global tax rate from settings - never trust user input
     tax_rate = get_tax_rate()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Get checkin with full relational data
     cursor.execute("""
@@ -1099,7 +1099,7 @@ def add_payment():
     # SECURITY: Always use global tax rate from settings - user cannot manipulate
     tax_rate = get_tax_rate()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Get checkin with full relational data
     cursor.execute("""
@@ -1209,7 +1209,7 @@ def add_payment():
 @require_login
 def print_receipt(id):
     """Generate printable receipt"""
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT p.*, c.guest_name, c.check_in_time, c.check_out_time,
                rom.room_number, rom.type as room_type, rom.price as room_price,
@@ -1259,7 +1259,7 @@ def print_receipt(id):
 @app.route('/foods')
 @require_login
 def foods():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM foods ORDER BY category, name")
     foods_list = cursor.fetchall()
     cursor.close()
@@ -1285,7 +1285,7 @@ def add_food():
         os.makedirs(os.path.dirname(upload_path), exist_ok=True)
         image_file.save(upload_path)
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     if image_filename:
         cursor.execute("INSERT INTO foods (name, price, category, image) VALUES (%s, %s, %s, %s)",
                       (name, price, category, image_filename))
@@ -1316,7 +1316,7 @@ def edit_food(id):
         os.makedirs(os.path.dirname(upload_path), exist_ok=True)
         image_file.save(upload_path)
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     if image_filename:
         cursor.execute("UPDATE foods SET name=%s, price=%s, category=%s, available=%s, image=%s WHERE id=%s",
                       (name, price, category, available, image_filename, id))
@@ -1330,7 +1330,7 @@ def edit_food(id):
 @app.route('/foods/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_food(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("DELETE FROM foods WHERE id=%s", (id,))
     db.commit()
     cursor.close()
@@ -1339,13 +1339,13 @@ def delete_food(id):
 @app.route('/foods/<int:id>/toggle', methods=['POST'])
 @require_login
 def toggle_food(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT available FROM foods WHERE id=%s", (id,))
     food = cursor.fetchone()
     cursor.close()
 
     new_status = not food['available']
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE foods SET available=%s WHERE id=%s", (new_status, id))
     db.commit()
     cursor.close()
@@ -1356,7 +1356,7 @@ def toggle_food(id):
 @app.route('/food-orders')
 @require_login
 def food_orders():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT fo.*, c.guest_name, rom.room_number
         FROM food_orders fo
@@ -1367,12 +1367,12 @@ def food_orders():
     orders = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT c.*, rom.room_number FROM checkins c JOIN rooms rom ON c.room_id = rom.id WHERE c.status='checked-in'")
     active_checkins = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM foods ORDER BY category, name")
     foods = cursor.fetchall()
     cursor.close()
@@ -1389,7 +1389,7 @@ def add_food_order():
     if 'order_items_json' in request.form:
         import json
         order_items = json.loads(request.form.get('order_items_json', '[]'))
-        cursor = db.cursor()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
         for item in order_items:
             cursor.execute("""
                 INSERT INTO food_orders (checkin_id, item_name, quantity, price, status)
@@ -1403,7 +1403,7 @@ def add_food_order():
     # Handle multiple items from POS (format: id:name:qty:price)
     if 'order_items' in request.form:
         order_items = request.form.getlist('order_items')
-        cursor = db.cursor()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
         for item in order_items:
             parts = item.split(':')
             if len(parts) >= 4:
@@ -1422,7 +1422,7 @@ def add_food_order():
     quantity = request.form['quantity']
     price = request.form['price']
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         INSERT INTO food_orders (checkin_id, item_name, quantity, price)
         VALUES (%s, %s, %s, %s)
@@ -1435,7 +1435,7 @@ def add_food_order():
 @require_login
 def update_food_order(id):
     status = request.form['status']
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE food_orders SET status=%s WHERE id=%s", (status, id))
     db.commit()
     cursor.close()
@@ -1446,7 +1446,7 @@ def update_food_order(id):
 @app.route('/addon-orders')
 @require_login
 def addon_orders():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         SELECT ao.*, c.guest_name, rom.room_number, a.name as addon_name
         FROM addon_orders ao
@@ -1458,12 +1458,12 @@ def addon_orders():
     orders = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT c.*, rom.room_number FROM checkins c JOIN rooms rom ON c.room_id = rom.id WHERE c.status='checked-in'")
     active_checkins = cursor.fetchall()
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM addons WHERE available = TRUE ORDER BY name")
     addons = cursor.fetchall()
     cursor.close()
@@ -1477,13 +1477,13 @@ def add_addon_order():
     addon_id = request.form['addon_id']
     quantity = request.form.get('quantity', 1)
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT price FROM addons WHERE id = %s", (addon_id,))
     addon = cursor.fetchone()
     cursor.close()
 
     if addon:
-        cursor = db.cursor()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
         cursor.execute("""
             INSERT INTO addon_orders (checkin_id, addon_id, quantity, price)
             VALUES (%s, %s, %s, %s)
@@ -1499,7 +1499,7 @@ def update_addon_order(id):
     status = request.form['status']
     quantity = request.form.get('quantity')
     price = request.form.get('price')
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     if quantity and price:
         cursor.execute("UPDATE addon_orders SET status=%s, quantity=%s, price=%s WHERE id=%s",
                        (status, quantity, price, id))
@@ -1512,7 +1512,7 @@ def update_addon_order(id):
 @app.route('/addon-orders/<int:id>/edit', methods=['GET'])
 @require_login
 def edit_addon_order(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM addon_orders WHERE id=%s", (id,))
     order = cursor.fetchone()
     cursor.close()
@@ -1521,7 +1521,7 @@ def edit_addon_order(id):
 @app.route('/addon-orders/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_addon_order(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("DELETE FROM addon_orders WHERE id=%s", (id,))
     db.commit()
     cursor.close()
@@ -1532,7 +1532,7 @@ def delete_addon_order(id):
 @app.route('/payments')
 @require_login
 def payments():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Fetch payments with full relational data
     cursor.execute("""
@@ -1552,7 +1552,7 @@ def payments():
 
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT c.*, rom.room_number, rom.price as room_price FROM checkins c JOIN rooms rom ON c.room_id = rom.id WHERE c.status='checked-in'")
     active_checkins = cursor.fetchall()
     cursor.close()
@@ -1562,7 +1562,7 @@ def payments():
 @app.route('/payments/<int:id>/complete', methods=['POST'])
 @require_login
 def complete_payment(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Get payment and checkin details
     cursor.execute("""
@@ -1607,7 +1607,7 @@ def complete_payment(id):
 @app.route('/addons')
 @require_login
 def addons():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM addons ORDER BY name")
     addons_list = cursor.fetchall()
     cursor.close()
@@ -1619,7 +1619,7 @@ def add_addon():
     name = request.form['name']
     price = request.form['price']
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("INSERT INTO addons (name, price) VALUES (%s, %s)", (name, price))
     db.commit()
     cursor.close()
@@ -1632,7 +1632,7 @@ def edit_addon(id):
     price = request.form['price']
     available = 'available' in request.form
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE addons SET name=%s, price=%s, available=%s WHERE id=%s",
                   (name, price, available, id))
     db.commit()
@@ -1642,7 +1642,7 @@ def edit_addon(id):
 @app.route('/addons/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_addon(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("DELETE FROM addons WHERE id=%s", (id,))
     db.commit()
     cursor.close()
@@ -1651,13 +1651,13 @@ def delete_addon(id):
 @app.route('/addons/<int:id>/toggle', methods=['POST'])
 @require_login
 def toggle_addon(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT available FROM addons WHERE id=%s", (id,))
     addon = cursor.fetchone()
     cursor.close()
 
     new_status = not addon['available']
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("UPDATE addons SET available=%s WHERE id=%s", (new_status, id))
     db.commit()
     cursor.close()
@@ -1672,7 +1672,7 @@ def settings():
     active_tab = request.form.get('setting_group', 'general') if request.method == 'POST' else 'general'
 
     if request.method == 'POST':
-        cursor = db.cursor()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
 
         # Company settings (general tab)
         if request.form.get('setting_group') == 'general':
@@ -1779,12 +1779,12 @@ def settings():
         flash('Settings saved successfully!', 'success')
         return redirect(url_for('settings', active_tab=active_tab))
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM settings")
     all_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT * FROM users ORDER BY created_at DESC")
     users = cursor.fetchall()
     cursor.close()
@@ -1802,7 +1802,7 @@ def test_email():
         flash('Please enter an email address to send the test.', 'danger')
         return redirect(url_for('settings'))
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
     settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
@@ -1874,7 +1874,7 @@ def add_user():
 
     hashed_password = hash_password(password)
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("INSERT INTO users (email, password, name, role) VALUES (%s, %s, %s, %s)",
                   (email, hashed_password, name, role))
     db.commit()
@@ -1885,7 +1885,7 @@ def add_user():
 @app.route('/users/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_user(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("DELETE FROM users WHERE id=%s", (id,))
     db.commit()
     cursor.close()
@@ -1896,7 +1896,7 @@ def delete_user(id):
 @app.route('/customers')
 @require_login
 def customers():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT id, name, email, contact, COALESCE(fb_account, '') as fb_account, created_at FROM customers ORDER BY created_at DESC")
     customer_list = cursor.fetchall()
     cursor.close()
@@ -1914,7 +1914,7 @@ def edit_customer_inline(id):
         if not name or not email or not contact:
             return 'Name, email and contact are required', 400
 
-        cursor = db.cursor()
+        cursor = db.cursor(pymysql.cursors.DictCursor)
         cursor.execute("""
             UPDATE customers SET name=%s, email=%s, contact=%s, fb_account=%s WHERE id=%s
         """, (name, email, contact, fb_account, id))
@@ -1934,7 +1934,7 @@ def update_customer():
     contact = request.form.get('contact')
     fb_account = request.form.get('fb_account', '')
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         UPDATE customers SET name=%s, email=%s, contact=%s, fb_account=%s WHERE id=%s
     """, (name, email, contact, fb_account, customer_id))
@@ -1952,7 +1952,7 @@ def add_customer():
     contact = request.form.get('contact')
     fb_account = request.form.get('fb_account', '')
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("""
         INSERT INTO customers (name, email, contact, fb_account) VALUES (%s, %s, %s, %s)
     """, (name, email, contact, fb_account))
@@ -1965,7 +1965,7 @@ def add_customer():
 @app.route('/customers/<int:id>/delete', methods=['POST'])
 @require_login
 def delete_customer(id):
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("DELETE FROM customers WHERE id=%s", (id,))
     db.commit()
     cursor.close()
@@ -2025,7 +2025,7 @@ def get_user_timezone_name():
 @app.route('/reports')
 @require_login
 def reports():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # Default to current month
     today = datetime.now()
@@ -2159,7 +2159,7 @@ def export_report(format):
     import csv
     import io
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     start_date = request.args.get('start_date', datetime.now().strftime('%Y-%m-01'))
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -2324,7 +2324,7 @@ def export_report(format):
 # ==================== EMAIL HELPER ====================
 
 def get_email_settings():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
     settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
@@ -2347,7 +2347,7 @@ def render_email_template(template, replacements):
 def send_email(to_email, subject, html_body, text_body=None):
     print(f"[EMAIL] Starting send_email to: {to_email}")
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'email_%'")
     settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
     cursor.close()
@@ -2406,7 +2406,7 @@ def send_email(to_email, subject, html_body, text_body=None):
 @app.route('/migrate/add-image-column')
 @require_login
 def migrate_add_image_column():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     try:
         cursor.execute("ALTER TABLE foods ADD COLUMN image VARCHAR(255) DEFAULT NULL")
         db.commit()
@@ -2419,7 +2419,7 @@ def migrate_add_image_column():
 @app.route('/migrate/add-room-image-column')
 @require_login
 def migrate_add_room_image_column():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     try:
         cursor.execute("ALTER TABLE rooms ADD COLUMN image VARCHAR(255) DEFAULT NULL")
         db.commit()
@@ -2432,7 +2432,7 @@ def migrate_add_room_image_column():
 @app.route('/migrate/add-users-role-column')
 @require_login
 def migrate_add_users_role_column():
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
     try:
         # First check if role column exists
         cursor.execute("SHOW COLUMNS FROM users LIKE 'role'")
